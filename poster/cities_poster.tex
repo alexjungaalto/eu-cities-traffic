@@ -1,0 +1,56 @@
+% A0 portrait poster: 4 x 4 grid of 16 city segmentation maps.
+\documentclass[a0paper,portrait]{article}
+\usepackage[a0paper,portrait,margin=20mm]{geometry}
+\usepackage{graphicx}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% Each city: image scaled into a square box + city name underneath, with
+% generous vertical space between the caption and the next row.
+\newlength{\cellside}\setlength{\cellside}{190mm}
+\newcommand{\citycard}[2]{%
+  \begin{minipage}[t]{\cellside}\centering
+    \includegraphics[width=\cellside,height=\cellside,keepaspectratio]{#1}\\[8mm]
+    {\fontsize{38}{46}\selectfont\bfseries #2}
+  \end{minipage}%
+}
+
+\begin{document}
+
+\vspace*{20mm}
+
+\begin{center}
+{\fontsize{75}{90}\selectfont\bfseries Public space in European cities}\\[10mm]
+{\fontsize{34}{40}\selectfont
+\textcolor{red!80!black}{\rule[0.3ex]{16mm}{7mm}}~Car carriageway\quad
+\textcolor{blue!80!black}{\rule[0.3ex]{16mm}{7mm}}~Pedestrian\quad
+\textcolor{yellow!85!orange}{\rule[0.3ex]{16mm}{7mm}}~Bike lane}\\[26mm]
+\end{center}
+
+\begin{center}
+\setlength{\tabcolsep}{4mm}
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{cccc}
+\citycard{helsinki_center_ylre_labels.png}{Helsinki} &
+\citycard{vienna_fmzk_labels.png}{Vienna} &
+\citycard{paris_voirie_labels.png}{Paris} &
+\citycard{milano_dbt_labels.png}{Milano} \\[50mm]
+\citycard{bern_av_labels.png}{Bern} &
+\citycard{barcelona_osm_labels.png}{Barcelona} &
+\citycard{brussels_osm_labels.png}{Brussels} &
+\citycard{graz_osm_labels.png}{Graz} \\[50mm]
+\citycard{bologna_osm_labels.png}{Bologna} &
+\citycard{athens_osm_labels.png}{Athens} &
+\citycard{thessaloniki_osm_labels.png}{Thessaloniki} &
+\citycard{malaga_osm_labels.png}{M\'alaga} \\[50mm]
+\citycard{lisbon_osm_labels.png}{Lisbon} &
+\citycard{lucca_osm_labels.png}{Lucca} &
+\citycard{siena_osm_labels.png}{Siena} &
+\citycard{krems_osm_labels.png}{Krems} \\
+\end{tabular}
+\end{center}
+
+\end{document}

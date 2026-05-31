@@ -1,0 +1,26 @@
+# Generated outputs — re-buildable from the .py scripts.
+outputs/
+*_overlay.png
+*_labels.png
+
+# LaTeX build artefacts.
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.out
+*.nav
+*.toc
+*.snm
+
+# Python.
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor / OS.
+.DS_Store
+.idea/
+.vscode/
