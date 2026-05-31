@@ -23,7 +23,7 @@ import matplotlib.patches as mpatches
 from PIL import Image
 
 # --- Config -----------------------------------------------------------------
-DATE = "2024-03-10"                                       # Sunday 10 Mar 2024
+DATE = "2024-03-13"                                       # Sunday 10 Mar 2024
 YEAR = DATE[:4]
 SPIRE_DS = f"rilevazione-flusso-veicoli-tramite-spire-anno-{YEAR}"
 EXPORT = ("https://opendata.comune.bologna.it/api/explore/v2.1/catalog/"

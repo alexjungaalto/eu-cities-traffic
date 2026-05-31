@@ -22,7 +22,7 @@ import matplotlib.patches as mpatches
 from PIL import Image
 
 # --- Config -----------------------------------------------------------------
-DATE = "2024-03-10"            # Sunday 10 March 2024
+DATE = "2024-03-13"            # Sunday 10 March 2024
 MONTH_DS_ID = "ds2730"          # March 2024 dataset
 MONTH_ZIP = ("https://dati.comune.milano.it/dataset/"
              "fc1ed5c4-4582-42e3-b2f2-0387a1079959/resource/"
