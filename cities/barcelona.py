@@ -20,6 +20,9 @@ from shapely.geometry import shape
 from rasterio.transform import from_origin
 from rasterio.features import rasterize
 from PIL import Image
+import _geocache
+
+NAME = "barcelona"
 
 # --- Area Of Interest -------------------------------------------------------
 # 4 x 4 km centred on Plaça de Catalunya. Captures Ciutat Vella (Gothic
@@ -123,30 +126,32 @@ def ortho_image(tile_px=1024):
             tw = min(tile_px, W - x0); th = min(tile_px, H - y0)
             tminx = minx + x0 * PX;   tmaxx = tminx + tw * PX
             tmaxy = maxy - y0 * PX;   tminy = tmaxy - th * PX
-            for attempt in range(4):
-                try:
-                    r = requests.get(ORTHO, params={
-                        "bbox": f"{tminx},{tminy},{tmaxx},{tmaxy}",
-                        "bboxSR": "32631", "imageSR": "32631",
-                        "size": f"{tw},{th}", "format": "png", "f": "image"}, timeout=300)
-                    r.raise_for_status()
-                    out[y0:y0+th, x0:x0+tw] = np.array(Image.open(io.BytesIO(r.content)).convert("RGB"))
-                    break
-                except Exception as e:
-                    if attempt == 3: raise
-                    time.sleep(2 * (attempt + 1))
+            def _fetch(tminx=tminx, tminy=tminy, tmaxx=tmaxx, tmaxy=tmaxy, tw=tw, th=th):
+                for attempt in range(4):
+                    try:
+                        r = requests.get(ORTHO, params={
+                            "bbox": f"{tminx},{tminy},{tmaxx},{tmaxy}",
+                            "bboxSR": "32631", "imageSR": "32631",
+                            "size": f"{tw},{th}", "format": "png", "f": "image"}, timeout=300)
+                        r.raise_for_status()
+                        return r.content
+                    except Exception:
+                        if attempt == 3: raise
+                        time.sleep(2 * (attempt + 1))
+            png = _geocache.tile_bytes(NAME, W, H, tile_px, ix, iy, _fetch)
+            out[y0:y0+th, x0:x0+tw] = np.array(Image.open(io.BytesIO(png)).convert("RGB"))
             print(f"  ortho tile {iy*nx+ix+1}/{nx*ny}")
     return out
 
 
 print("Fetching orthophoto (ESRI World Imagery)...")
-ortho = ortho_image()
+ortho = _geocache.cached_array(NAME, f"ortho_{W}x{H}", ortho_image)
 
 # One bulky Overpass query for everything road/path/cycle-related. We
 # request `out geom` so each way carries inline coordinates.
 bbox = f"{lat_min},{lon_min},{lat_max},{lon_max}"
 print("Fetching OSM ways via Overpass...")
-osm = overpass(f"""
+osm = _geocache.cached_json(NAME, "osm_main", lambda: overpass(f"""
 [out:json][timeout:300];
 (
   way["highway"]({bbox});
@@ -154,7 +159,7 @@ osm = overpass(f"""
   way["footway"]({bbox});
 );
 out geom;
-""")
+"""))
 print(f"  elements: {len(osm.get('elements', []))}")
 
 ways = osm_to_gdf(osm, {"LineString", "Polygon"})

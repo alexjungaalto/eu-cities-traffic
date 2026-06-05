@@ -10,10 +10,9 @@ inbound, evening rush outbound — which a single-blob count map hides.
 
 Data sources
 ------------
-* Roadway-surface polygons: opendata.paris.fr dataset
-  `plan-de-voirie-chaussees` ("Plan de voirie - Chaussées") — the
-  actual paved carriageways as filled polygons, drawn in black as a
-  base layer to anchor the eye.
+* Aerial basemap: ESRI World Imagery REST export (EPSG:2154), the
+  same orthophoto source the static city overlays use. No road
+  geometry is drawn — the photo itself shows the streets.
 * Counter records: opendata.paris.fr dataset
   `comptage-velo-donnees-compteurs` — hourly volumes since 2018.
 
@@ -55,33 +54,46 @@ transform = from_origin(MINX, MAXY, PX, PX)
 print(f"AOI {MAXX-MINX:.0f} x {MAXY-MINY:.0f} m -> {W} x {H} px @ {PX} m/px")
 
 OPENDATA = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets"
-CHAUSSEES_EXPORT = f"{OPENDATA}/plan-de-voirie-chaussees/exports/geojson"
 COUNTS_API = f"{OPENDATA}/comptage-velo-donnees-compteurs/records"
+ORTHO = ("https://services.arcgisonline.com/arcgis/rest/services/"
+         "World_Imagery/MapServer/export")
 
 CACHE = os.path.expanduser("~/.cache/paris_bike_dir")
 os.makedirs(CACHE, exist_ok=True)
 to_local = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
 
-# --- 1) Roadway-surface polygons (black base) -------------------------------
-chaussees_cache = os.path.join(CACHE, "chaussees.geojson")
-if not os.path.exists(chaussees_cache):
-    print("Fetching chaussees (roadway polygons)...")
-    r = requests.get(CHAUSSEES_EXPORT, timeout=600)
-    r.raise_for_status()
-    with open(chaussees_cache, "wb") as f: f.write(r.content)
-chaussees = gpd.read_file(chaussees_cache).to_crs(2154)
-# Keep features intersecting the AOI for speed.
-from shapely.geometry import box
-aoi_geom = box(MINX, MINY, MAXX, MAXY)
-chaussees = chaussees[chaussees.intersects(aoi_geom)]
-print(f"  chaussees inside AOI: {len(chaussees)}")
 
-# Rasterize the carriageway polygons directly (already areal — no buffering).
-geoms = [g for g in chaussees.geometry if g and not g.is_empty]
-road_mask = rasterize([(g, 1) for g in geoms], out_shape=(H, W),
-                      transform=transform, fill=0, dtype="uint8").astype(bool)
-base = np.full((H, W, 3), 250, dtype="uint8")
-base[road_mask] = (20, 20, 20)          # black roadways
+def ortho_image(tile_px=2048):
+    """Mosaic ESRI World Imagery over the AOI at the raster grid resolution.
+    Tiled so each REST request stays within the service's size limits."""
+    out = np.zeros((H, W, 3), "uint8")
+    nx = math.ceil(W / tile_px); ny = math.ceil(H / tile_px)
+    for iy in range(ny):
+        for ix in range(nx):
+            x0 = ix * tile_px; y0 = iy * tile_px
+            tw = min(tile_px, W - x0); th = min(tile_px, H - y0)
+            tminx = MINX + x0 * PX;  tmaxx = tminx + tw * PX
+            tmaxy = MAXY - y0 * PX;  tminy = tmaxy - th * PX
+            r = requests.get(ORTHO, params={
+                "bbox": f"{tminx},{tminy},{tmaxx},{tmaxy}",
+                "bboxSR": "2154", "imageSR": "2154",
+                "size": f"{tw},{th}", "format": "png", "f": "image"}, timeout=600)
+            r.raise_for_status()
+            out[y0:y0+th, x0:x0+tw] = np.array(
+                Image.open(io.BytesIO(r.content)).convert("RGB"))
+            print(f"  ortho tile {iy*nx+ix+1}/{nx*ny}")
+    return out
+
+# --- 1) Aerial basemap (no road geometry) ----------------------------------
+# The orthophoto itself shows the streets, so we draw no road polygons.
+# Cached as a .npy so re-runs skip the tile fetch.
+ortho_cache = os.path.join(CACHE, f"ortho_{W}x{H}.npy")
+if os.path.exists(ortho_cache):
+    base = np.load(ortho_cache)
+else:
+    print("Fetching orthophoto (ESRI World Imagery)...")
+    base = ortho_image()
+    np.save(ortho_cache, base)
 
 # --- 2) Counter records for DATE -------------------------------------------
 # The OpenData API is paged at 100 rows; we use `where=` to filter by date
@@ -216,8 +228,8 @@ for fname in os.listdir(frame_dir): os.remove(os.path.join(frame_dir, fname))
 # Arrow geometry — both length and width scale with sqrt(|net|/maxc), drawn
 # with FancyArrow so the stem width can vary per arrow (like Helsinki metro).
 from matplotlib.patches import FancyArrow
-MIN_LEN, MAX_LEN = 4, 34        # pixels on the small image
-MIN_W,  MAX_W  = 1.2, 7.0       # arrow stem width
+MIN_LEN, MAX_LEN = 6, 48        # pixels on the small image (Helsinki-metro scale)
+MIN_W,  MAX_W  = 2.25, 12       # arrow stem width (Helsinki-metro scale)
 
 def arrow_dims(n):
     """Return (length, stem-width, head-width, head-length) for |net| = n."""
@@ -225,7 +237,7 @@ def arrow_dims(n):
     s = math.sqrt(n / maxc)
     L = MIN_LEN + (MAX_LEN - MIN_LEN) * s
     w = MIN_W  + (MAX_W  - MIN_W ) * s
-    return L, w, w * 2.4, max(3.0, L * 0.45)
+    return L, w, w * 2.4, max(4.0, L * 0.45)
 
 for h in range(24):
     vals = hour_counts.get(h, {})
